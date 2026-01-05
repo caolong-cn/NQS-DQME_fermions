@@ -2,9 +2,9 @@
 
 Repository for these two papers:
 
-_NQS_
+[_NQS_](https://arxiv.org/abs/2404.11093)
 
-_PINN_
+[_PINN_](https://arxiv.org/abs/2404.11093)
 
 ## Contents
 
@@ -38,7 +38,7 @@ Or you can install all libraries via `pip install -r requirement.txt`
 
 ### Step 2: Clone this repository
 
-`git clone https://github.com/xxx`
+`git clone https://github.com/caolong-cn/NQS-DQME_fermions.git`
 
 ## Supported platforms
 
