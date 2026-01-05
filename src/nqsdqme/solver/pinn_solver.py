@@ -181,7 +181,7 @@ class PINNSolverSPOP(PINNSolver):
         print("n_it: %d" % result.nit)
         print("total evaluations: %d" % result.nfev,flush=True)
         print(f'terminate because:{result.message}')
-        self.rho.vec_to_nn(torch.from_numpy(result.x))
+        self.rho.vec_to_nn(torch.from_numpy(result.x).to(get_device()))
 
         rho_0 = self.rho.rho_0().detach()
         n_up, n_down = self.operators.occupation(rho_0)
@@ -314,7 +314,7 @@ class PINNSolverAdam(PINNSolver):
                             ,flush=True)
                     self.t1 = self.t2
                 if self.count_epoch%self.stepsize_saverho==0:
-                    torch.save(self.rho.state_dict(),f'rho_'+self.method+'ll_{self.count_epoch}')
+                    torch.save(self.rho.state_dict(),f'rho_'+self.method+f'll_{self.count_epoch}')
         return self.L2
             # i = 0
             # L = self.loss()
