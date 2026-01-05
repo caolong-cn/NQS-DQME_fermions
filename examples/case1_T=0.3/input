@@ -1,0 +1,8 @@
+cuda
+25 25 0     # nhidden  nauxillary epsilontuning_mode
+3 3 0       # nonmccut  allcut Lsaving_mode(if nonmc, nonmccut=allcut=3; if mc, nonmccut+1=allcut=3) 
+8192 0 0     # sampling number  N_start N_end
+0.0 30.0 0       # (for td)  t_lower t_upper count
+1.e-10 1.e-12
+#epsilontuning_mode = 0,1,2 mid,quick,slow
+#Lsaving_mode = 0, saving;1, not saving

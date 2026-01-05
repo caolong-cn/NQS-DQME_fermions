@@ -1,0 +1,6 @@
+cuda
+70 30 0     # nhidden  nauxillary 
+3 3 0       # nonmccut  allcut (if nonmc, nonmccut=allcut=3; if mc, nonmccut+1=allcut=3)
+1 10 20     # chains_number  N_start N_end
+0.0 0       # (for td) count  t_lower
+

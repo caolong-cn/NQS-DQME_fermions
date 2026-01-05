@@ -1,0 +1,4 @@
+0           #mode = 0:case1    mode=1:case2
+-0.5        #energy of spin orbitals, epsilon_is
+-0.5
+1.0         #U/coulomb replusion inner different energy levels 
