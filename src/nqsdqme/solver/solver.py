@@ -412,7 +412,7 @@ class TDVP_mc(TDVP) :
         return self.epsilon
     
 class SS_pre():
-    def __init__(self,allcut,rho,states,operators):
+    def __init__(self,allcut,rho,states:torch.Tensor,operators):
         self.rho = rho
         self.states = states
         self.operator = operators
@@ -480,7 +480,7 @@ class SS_pre():
                 print(f'average over 5:{np.average(x_next)}\n')
                 x_next = self.unirandom(x)
             x = x_next
-            self.rho.vec_to_nn(torch.from_numpy(x).to(get_device()))
+            # self.rho.vec_to_nn(torch.from_numpy(x).to(get_device()))
             return x
         
         def unirandom(self,x) :
@@ -562,6 +562,7 @@ class SS_pre():
         n_up, n_down = self.operator.occupation(rho_0)
         trace = torch.real(torch.trace(rho_0))
         print('rho_0:')
+        print(rho_0)
         print(f'up:{n_up:6e}  ;down:{n_down:6e}')
         print(f'trace: {trace:.3e}')
         print('loss_at_end')
@@ -689,7 +690,7 @@ class SS_ll(SS_pre):
         if self.count!=0 and self.count%self.step_s==0:
             torch.save(self.rho.state_dict(),f'rho_{self.meth}_{self.count}')
         self.count += 1
-        return L
+        return L.to('cpu').numpy()
     
     def loss_d(self,vec_of_rho) :
         self.rho.vec_to_nn(torch.from_numpy(vec_of_rho).to(get_device()))

@@ -49,7 +49,7 @@ class NADOt(nn.Module):
 
     def States(self, x, t=None):  
         if t==None:
-            print('without t in rho.States')
+            # print('without t in rho.States')
             t = 0.
         x_t = torch.zeros((x.shape[0],self.nstate+self.N_t),dtype=torch.complex128,device=get_device())
         x_t[:,0:self.nstate] = x
@@ -210,7 +210,7 @@ class NADOt(nn.Module):
         count_left = SubscriptTrans0_torch(self.table0[:,:self.Ns])
         count_right = SubscriptTrans0_torch(self.table0[:,self.Ns:])
         state0 = torch.zeros((self.table0.shape[0],self.nstate),dtype=torch.float64,device=self.device)
-        # state0[:,self.Nd:-1] = self.table0
+        state0[:,self.Nd:] = self.table0
         # state0[:,-1] = t
         # print(count_left)
         # print(count_right)
@@ -336,7 +336,7 @@ class MLPt_res(NADOt):
 
     def parameters_t_initial(self):
         dict = self.state_dict()
-        dict['nn1.0.weight'][:,-5:] = 0+0.j
+        dict['nn1.0.weight'][:,-self.N_t:] = 0+0.j
         # dict['nn1.0.weight'][:,0:-1].real = torch.randn((self.nhidden,self.nstate))+0.1
         # dict['nn.6.bias'].real = -0.3
         # dict['nn.6.bias'].imag = 0.15
