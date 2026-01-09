@@ -384,7 +384,7 @@ class PINNSolverAdam(PINNSolver):
 #     return 0
 
 
-class PINNSolverSPOPMutlC(PINNSolverSPOP):
+class PINNSolverSPOPMultC(PINNSolverSPOP):
     def __init__(self,liouville:Liouville,
                  operators,
                  basis:Basis,initial_ts:np.ndarray,
