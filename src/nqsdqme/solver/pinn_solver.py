@@ -82,7 +82,6 @@ class PINNSolverSPOP(PINNSolver):
         L_e = torch.zeros_like(self.residual_ts,dtype=torch.float64,device=get_device())
         L_tr = torch.zeros_like(self.residual_ts,dtype=torch.float64,device=get_device())
         for i in range(0,self.N_r):
-            self.residual_ts[i]
             a = self.rho.States(self.states,self.residual_ts[i])
             b = self.rho.States(self.states,self.residual_ts[i]+self.delta_t)
             partial_t_of_rho = (b - a)/self.delta_t
@@ -125,7 +124,6 @@ class PINNSolverSPOP(PINNSolver):
         L_e = torch.zeros_like(self.residual_ts,dtype=torch.float64,device=get_device())
         L_tr = torch.zeros_like(self.residual_ts,dtype=torch.float64,device=get_device())
         for i in range(0,self.N_r):
-            self.residual_ts[i]
             a = self.rho.States(self.states,self.residual_ts[i])
             b = self.rho.States(self.states,self.residual_ts[i]+self.delta_t)
             partial_t_of_rho = (b - a)/self.delta_t
@@ -384,3 +382,95 @@ class PINNSolverAdam(PINNSolver):
 #             torch.save(rho.state_dict(),f'rho_simulate_{meth}_{step_count}')
 #     print('\n')
 #     return 0
+
+
+class PINNSolverSPOPMutlC(PINNSolverSPOP):
+    def __init__(self,liouville:Liouville,
+                 operators,
+                 basis:Basis,initial_ts:np.ndarray,
+                 residual_ts:np.ndarray,rho0:NADOt,
+                 coef_initial,targets_initial,
+                 w_b = 0.8,w_e = 0.2,w_r = 20.,delta_t = 1e-8,
+                 method='BFGS'
+                 ):
+        super().__init__(liouville,
+                 operators,
+                 basis,residual_ts,rho0,
+                 coef_initial,targets_initial,
+                 w_b ,w_e,w_r,delta_t,method)
+
+        self.targets_initial = self.target_initial
+        self.initial_ts = initial_ts
+
+    @torch.no_grad()
+    def loss(self,vec_of_rho) : 
+        self.rho.vec_to_nn(torch.from_numpy(vec_of_rho).to(get_device()))
+        #contribution of initial conditions/ boundary conditions
+        L_b = torch.zeros_like(self.initial_ts,dtype=torch.float64,device=get_device())
+        for i in range(0,len(self.initial_ts)):
+            t_0 = self.initial_ts[i]
+            rho_states = self.rho.States(self.states,t_0)
+            delta = (rho_states-self.targets_initial[i])*self.coef_initial
+            L_b[i] = torch.real(torch.dot(delta,torch.conj(delta))) 
+
+        #contribution of equation
+        L_e = torch.zeros_like(self.residual_ts,dtype=torch.float64,device=get_device())
+        L_tr = torch.zeros_like(self.residual_ts,dtype=torch.float64,device=get_device())
+        for i in range(0,self.N_r):
+            a = self.rho.States(self.states,self.residual_ts[i])
+            b = self.rho.States(self.states,self.residual_ts[i]+self.delta_t)
+            partial_t_of_rho = (b - a)/self.delta_t
+            residual = partial_t_of_rho - self.liouville.Lforward(self.rho,self.residual_ts[i])
+            # Lforward_new_nonmc_2(rho)
+            # print(f'partial_t_of_rho:{torch.sum(torch.real(torch.multiply(partial_t_of_rho,partial_t_of_rho.conj())))}')
+            L2 = torch.sum(torch.real(torch.multiply(residual,residual.conj())))
+            trace    = torch.real(torch.sum(a[0:2**self.rho.Ns]))
+            L_e[i] =  L2/(trace**2)
+            L_tr[i] = (1-trace)**2
+        loss = self.w_b*torch.sum(L_b) + self.w_e*torch.sum(L_e) +self.w_r*torch.sum(L_tr)
+        if self.count_loss%self.stepsize_print==0 :
+            # if self.count==0:
+            #     t3 = time.time()
+            self.t2 = time.time()
+            print(f'count:{self.count_loss:4d}   \
+                  loss_{self.method}:{loss:.4e}   t:{self.t2-self.t1:.2e} \
+                    trace_at_last:{trace}',flush=True)
+            self.save_physics(loss)
+            self.t1 = time.time()
+        # if self.count_loss%self.stepsize_print==0:
+            # result_print(loss,ifresult=False)
+        if (self.count_loss!=0 and 
+            self.count_loss%self.stepsize_saverho==0):
+            # and meth=='BFGS':
+            torch.save(self.rho.state_dict(),f'rho_'+self.method+f'_ll_t_{self.count_loss}')
+        self.count_loss += 1
+        self.L2 = loss.to('cpu').numpy()
+        return self.L2
+
+    def loss_d(self,vec_of_rho) :
+        self.rho.vec_to_nn(torch.from_numpy(vec_of_rho).to(get_device()))
+        #contribution of initial conditions/ boundary conditions
+        L_b = torch.zeros_like(self.initial_ts,dtype=torch.float64,device=get_device())
+        for i in range(0,len(self.initial_ts)):
+            t_0 = self.initial_ts[i]
+            rho_states = self.rho.States(self.states,t_0)
+            delta = (rho_states-self.targets_initial[i])*self.coef_initial
+            L_b[i] = torch.real(torch.dot(delta,torch.conj(delta))) 
+
+        #contribution of equation
+        L_e = torch.zeros_like(self.residual_ts,dtype=torch.float64,device=get_device())
+        L_tr = torch.zeros_like(self.residual_ts,dtype=torch.float64,device=get_device())
+        for i in range(0,self.N_r):
+            a = self.rho.States(self.states,self.residual_ts[i])
+            b = self.rho.States(self.states,self.residual_ts[i]+self.delta_t)
+            partial_t_of_rho = (b - a)/self.delta_t
+            residual = partial_t_of_rho - self.liouville.Lforward(self.rho,self.residual_ts[i])
+            L2 = torch.sum(torch.real(torch.multiply(residual,residual.conj())))
+            trace    = torch.real(torch.sum(a[0:2**self.rho.Ns]))
+            L_e[i] =  L2/(trace**2)
+            L_tr[i] = (1-trace)**2
+        loss = self.w_b*torch.sum(L_b) + self.w_e*torch.sum(L_e) +self.w_r*torch.sum(L_tr)
+        loss.backward()
+        lossd = self.rho.nnd_to_vec()
+        self.rho.zero_grad()
+        return lossd.to('cpu').numpy()
