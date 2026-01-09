@@ -243,8 +243,8 @@ class NADOt(nn.Module):
         if n2 is None:
             n2 = self.nstate + self.N_t
         dict = self.state_dict()
-        dict['nn1.0.weight'][:,n1:n2] = 0+0.j
-        # dict['nn1.0.weight'][:,0:-1].real = torch.randn((self.nhidden,self.nstate))+0.1
+        dict['nn.0.weight'][:,n1:n2] = 0+0.j
+        # dict['nn.0.weight'][:,0:-1].real = torch.randn((self.nhidden,self.nstate))+0.1
         # dict['nn.6.bias'].real = -0.3
         # dict['nn.6.bias'].imag = 0.15
         self.load_state_dict(dict)
@@ -370,5 +370,16 @@ class MLPt_res(NADOt):
         r6 = self.nn6(r2)
         return r6
 
-
+    def parameters_t_initial(self,n1=None,n2=None):
+        if n1 is None:
+            n1 = self.nstate
+        if n2 is None:
+            n2 = self.nstate + self.N_t
+        dict = self.state_dict()
+        dict['nn1.0.weight'][:,n1:n2] = 0+0.j
+        # dict['nn.0.weight'][:,0:-1].real = torch.randn((self.nhidden,self.nstate))+0.1
+        # dict['nn.6.bias'].real = -0.3
+        # dict['nn.6.bias'].imag = 0.15
+        self.load_state_dict(dict)
+        return 0
     
