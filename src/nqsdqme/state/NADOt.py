@@ -237,6 +237,42 @@ class NADOt(nn.Module):
             print(p)
         return gradient
 
+    def parameters_t_initial(self,n1=None,n2=None):
+        if n1 is None:
+            n1 = self.nstate
+        if n2 is None:
+            n2 = self.nstate + self.N_t
+        dict = self.state_dict()
+        dict['nn1.0.weight'][:,n1:n2] = 0+0.j
+        # dict['nn1.0.weight'][:,0:-1].real = torch.randn((self.nhidden,self.nstate))+0.1
+        # dict['nn.6.bias'].real = -0.3
+        # dict['nn.6.bias'].imag = 0.15
+        self.load_state_dict(dict)
+        return 0
+
+
+    def t_to_0(self,n1=None,n2=None):
+        if n1 is None:
+            n1 = self.nstate
+        if n2 is None:
+            n2 = self.nstate + self.N_t
+        dict = self.state_dict()
+        dict['nn.0.weight'][:,n1:n2] = 0. +0.j
+        self.load_state_dict(dict)
+        return 0
+
+    def t_to_0_random(self,n1=None,n2=None):
+        if n1 is None:
+            n1 = self.nstate
+        if n2 is None:
+            n2 = self.nstate + self.N_t
+        dict = self.state_dict()
+        dict['nn.0.weight'][:,n1:n2] = (torch.randn_like(dict['nn.0.weight'][:,n1:n2]))*(1.+1.j)*0.001
+        # dict['nn.0.weight'][:,-1]*0.0001
+        self.load_state_dict(dict)
+        return 0
+    
+
 class MLPt(NADOt):
     def __init__(
         self,
@@ -256,6 +292,7 @@ class MLPt(NADOt):
         bath_number,nsgn,device,table0,N_t,f_t,gamma)
 
         self.nhidden = nhidden
+        self.Nh = nhidden
         # nhidden = 50
         self.nn = torch.nn.Sequential(
             torch.nn.Linear(self.nstate+self.N_t,nhidden,dtype=torch.complex128),
@@ -334,29 +371,4 @@ class MLPt_res(NADOt):
         return r6
 
 
-    def parameters_t_initial(self):
-        dict = self.state_dict()
-        dict['nn1.0.weight'][:,-self.N_t:] = 0+0.j
-        # dict['nn1.0.weight'][:,0:-1].real = torch.randn((self.nhidden,self.nstate))+0.1
-        # dict['nn.6.bias'].real = -0.3
-        # dict['nn.6.bias'].imag = 0.15
-        self.load_state_dict(dict)
-        return 0
-
-    def t_to_0(self):
-        i = 0
-        j = 0
-        dict = self.state_dict()
-        dict['nn.0.weight'][:,-5:] = 0. +0.j
-        self.load_state_dict(dict)
-        return 0
-
-    def t_to_0_random(self):
-        i = 0
-        j = 0
-        dict = self.state_dict()
-        dict['nn.0.weight'][:,-5:] = (torch.randn_like(dict['nn.0.weight'][:,-5:]))*(1.+1.j)*0.001
-        # dict['nn.0.weight'][:,-1]*0.0001
-        self.load_state_dict(dict)
-        return 0
     
