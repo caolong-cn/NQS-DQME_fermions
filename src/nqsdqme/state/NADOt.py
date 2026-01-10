@@ -8,7 +8,7 @@ import time
 f_1 = lambda t: t
 f_2 = lambda t: 0.*t
 f_3 = lambda t: 0.*t
-# f_t = [f_1,f_2,f_3]
+f_t = [f_1,f_2,f_3]
 
 class NADOt(nn.Module):
     def __init__(
@@ -31,7 +31,7 @@ class NADOt(nn.Module):
         self.Nb = bath_number
         self.nsgn = nsgn
         self.device = device
-        self.table0 = torch.tensor(table0).to(self.device)
+        self.table0 = torch.tensor(table0).to(get_device())
 
         self.Ns = self.No * self.Nv 
         self.Nd = nsgn * self.No * self.Nv * self.Nb * self.M 
@@ -47,26 +47,33 @@ class NADOt(nn.Module):
 
         self.count = 0
 
+        self.float_dtype = torch.float64
+        self.complex_dtype = torch.complex128
+
     def States(self, x, t=None):  
+        """
+        calculates the rho(x,t) using the forward function, 
+        which you should predefine for the subclass of NADOt
+        """
         if t==None:
             # print('without t in rho.States')
             t = 0.
-        x_t = torch.zeros((x.shape[0],self.nstate+self.N_t),dtype=torch.complex128,device=get_device())
+        x_t = torch.zeros((x.shape[0],self.nstate+self.N_t),dtype=self.complex_dtype,device=get_device())
         x_t[:,0:self.nstate] = x
         for i in range(self.N_t):
             x_t[:,self.nstate+i] = self.f_t[i](t)
         # x_t[:,self.nstate+1] = self.f_2(t)
         # x_t[:,self.nstate+2] = self.f_3(t)
 
-        #x should be torch.float64  
+        #x should be self.float_dtype  
         self.count += x.shape[0]
         # y,x1,x2,t = torch.split(x,[self.Nd, self.Ns, self.Ns,1],dim=1)
         coef = (torch.floor(torch.sum(x[:,:self.Nbs], dim=1)/2)+\
             torch.floor(torch.sum(x[:,self.Nbs:self.Nd], dim=1)/2)).view(-1,1)
         expgamma = torch.exp(self.gamma*torch.sum(x[:,:self.Nd],dim=1)).view(-1,1)
-        # y = y.type(torch.complex128)
-        # x1 = x1.type(torch.complex128)
-        # x2 = x2.type(torch.complex128)
+        # y = y.type(self.complex_dtype)
+        # x1 = x1.type(self.complex_dtype)
+        # x2 = x2.type(self.complex_dtype)
         r0 = self.forward(x_t)
         x_c = x_t.clone()
         x_c[:,0:self.Nbs] = x_t[:,self.Nbs:self.Nd]
@@ -115,7 +122,7 @@ class NADOt(nn.Module):
 
 
     def nn_to_vec(self):
-        vec = torch.zeros(self.nparameters,dtype=torch.float64) 
+        vec = torch.zeros(self.nparameters,dtype=self.float_dtype) 
         i = 0
         j = 0
         for name,p in self.named_parameters():
@@ -155,7 +162,7 @@ class NADOt(nn.Module):
         return self
     
     def nnd_to_vec(self):
-        gradient = torch.zeros(self.nparameters,dtype=torch.float64) 
+        gradient = torch.zeros(self.nparameters,dtype=self.float_dtype) 
         i = 0
         j = 0
         for name,p in self.named_parameters() :
@@ -206,10 +213,10 @@ class NADOt(nn.Module):
 
     def rho_0(self,t=0.) :
         #return rho0(the density operator)
-        rho_0 = torch.zeros((2**self.Ns,2**self.Ns),dtype=torch.complex128,device=self.device)
+        rho_0 = torch.zeros((2**self.Ns,2**self.Ns),dtype=self.complex_dtype,device=get_device())
         count_left = SubscriptTrans0_torch(self.table0[:,:self.Ns])
         count_right = SubscriptTrans0_torch(self.table0[:,self.Ns:])
-        state0 = torch.zeros((self.table0.shape[0],self.nstate),dtype=torch.float64,device=self.device)
+        state0 = torch.zeros((self.table0.shape[0],self.nstate),dtype=self.float_dtype,device=get_device())
         state0[:,self.Nd:] = self.table0
         # state0[:,-1] = t
         # print(count_left)
@@ -220,7 +227,7 @@ class NADOt(nn.Module):
 
 
     def print_gradient(self):
-        gradient = torch.zeros(self.nparameters,dtype=torch.float64) 
+        gradient = torch.zeros(self.nparameters,dtype=self.float_dtype) 
         i = 0
         j = 0
         for name,p in self.named_parameters():
@@ -229,7 +236,7 @@ class NADOt(nn.Module):
         return gradient
 
     def print_parameters(self):
-        gradient = torch.zeros(self.nparameters,dtype=torch.float64) 
+        gradient = torch.zeros(self.nparameters,dtype=self.float_dtype) 
         i = 0
         j = 0
         for name,p in self.named_parameters():
@@ -285,7 +292,7 @@ class MLPt(NADOt):
         table0,
         N_t=3,
         f_t=[f_1,f_2,f_3],
-        gamma=-2.,
+        gamma=-0.,
         nhidden=30
         ):
         super().__init__(system_level,spin_degree,environment_model,
@@ -295,13 +302,13 @@ class MLPt(NADOt):
         self.Nh = nhidden
         # nhidden = 50
         self.nn = torch.nn.Sequential(
-            torch.nn.Linear(self.nstate+self.N_t,nhidden,dtype=torch.complex128),
+            torch.nn.Linear(self.nstate+self.N_t,nhidden,dtype=self.complex_dtype),
             torch.nn.Sigmoid(),
-            torch.nn.Linear(nhidden,nhidden,dtype=torch.complex128),
+            torch.nn.Linear(nhidden,nhidden,dtype=self.complex_dtype),
             torch.nn.Sigmoid(),
-            torch.nn.Linear(nhidden,nhidden,dtype=torch.complex128),
+            torch.nn.Linear(nhidden,nhidden,dtype=self.complex_dtype),
             torch.nn.Sigmoid(),
-            torch.nn.Linear(nhidden,1,dtype=torch.complex128)
+            torch.nn.Linear(nhidden,1,dtype=self.complex_dtype)
         )
         self.nparameters = self.get_parameter_number()
 
@@ -329,35 +336,35 @@ class MLPt_res(NADOt):
 
         self.nhidden = nhidden
 
-        identity = 0.5*torch.eye(nhidden,dtype=torch.complex128)
+        identity = 0.5*torch.eye(nhidden,dtype=self.complex_dtype)
         # nhidden = 50
         self.nn1 = torch.nn.Sequential(
-            torch.nn.Linear(self.nstate+3,nhidden,dtype=torch.complex128),
-            # torch.nn.BatchNorm1d(nhidden,dtype=torch.complex128),
+            torch.nn.Linear(self.nstate+3,nhidden,dtype=self.complex_dtype),
+            # torch.nn.BatchNorm1d(nhidden,dtype=self.complex_dtype),
             torch.nn.Sigmoid()
             )
         self.nn2 = torch.nn.Sequential(
-            torch.nn.Linear(nhidden,nhidden,dtype=torch.complex128),
-            # torch.nn.BatchNorm1d(nhidden,dtype=torch.complex128),
+            torch.nn.Linear(nhidden,nhidden,dtype=self.complex_dtype),
+            # torch.nn.BatchNorm1d(nhidden,dtype=self.complex_dtype),
             torch.nn.Sigmoid())
         self.nn2[0].weight.data = self.nn2[0].weight - identity
         # self.nn3 = torch.nn.Sequential(
-        #     torch.nn.Linear(nhidden,nhidden,dtype=torch.complex128),
-        #     # torch.nn.BatchNorm1d(nhidden,dtype=torch.complex128),
+        #     torch.nn.Linear(nhidden,nhidden,dtype=self.complex_dtype),
+        #     # torch.nn.BatchNorm1d(nhidden,dtype=self.complex_dtype),
         #     torch.nn.Sigmoid())
         # self.nn3[0].weight.data = self.nn3[0].weight - identity
         # self.nn4 = torch.nn.Sequential(
-        #     torch.nn.Linear(nhidden,nhidden,dtype=torch.complex128),
-        #     # torch.nn.BatchNorm1d(nhidden,dtype=torch.complex128),
+        #     torch.nn.Linear(nhidden,nhidden,dtype=self.complex_dtype),
+        #     # torch.nn.BatchNorm1d(nhidden,dtype=self.complex_dtype),
         #     torch.nn.Sigmoid())
         # self.nn4[0].weight.data = self.nn4[0].weight - identity
         # self.nn5 = torch.nn.Sequential(
-        #     torch.nn.Linear(nhidden,nhidden,dtype=torch.complex128),
-        #     # torch.nn.BatchNorm1d(nhidden,dtype=torch.complex128),
+        #     torch.nn.Linear(nhidden,nhidden,dtype=self.complex_dtype),
+        #     # torch.nn.BatchNorm1d(nhidden,dtype=self.complex_dtype),
         #     torch.nn.Sigmoid())
         # self.nn5[0].weight.data = self.nn5[0].weight - identity
         self.nn6 = torch.nn.Sequential(
-            torch.nn.Linear(nhidden,1,dtype=torch.complex128),
+            torch.nn.Linear(nhidden,1,dtype=self.complex_dtype),
             torch.nn.Sigmoid())
         self.nparameters = self.get_parameter_number()
 
