@@ -2,7 +2,7 @@ import torch
 import numpy as np
 
 from ..utils import CUDATimer
-from .solver import TDVP, TDVP_mc
+from .tdvp import TDVP, TDVP_mc
 from ..global_defs import get_device
 
 
