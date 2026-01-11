@@ -161,7 +161,7 @@ class PINNSolverSPOP(PINNSolver):
     
     def save_physics(self,fname='result_evo_ll_t'):
         t_slice = torch.range(self.residual_ts[0],self.residual_ts[-1],0.05,dtype=torch.float64)
-        f1 = open(fname,'a')
+        f1 = open(fname,'w')
         for t in t_slice:
             rho_0 = self.rho.rho_0(t).detach()
             n_up, n_down = self.operators.occupation(rho_0)
