@@ -13,20 +13,20 @@ from nqsdqme.core.basis import Basis
 
 from ..global_defs import get_device
 
-class PINNSolver():
+from .optimizer import BasicSPOP
+
+class PINNSolver(BasicSPOP):
     def __init__(self,liouville:Liouville,
                  operators,
                  basis:Basis,residual_ts:np.ndarray,rho0:NADOt,
                  coef_initial,target_initial,
                  w_b = 0.8,w_e = 0.2,w_r = 20.,delta_t = 1e-8,
                  ):
+        super().__init__(rho0,torch.tensor(basis.states,device=get_device()),operators)
         self.basis = basis
-        self.states = torch.tensor(basis.states,device=get_device())
-        # self.states.shape[0]
 
         self.liouville = liouville
-        self.operators = operators
-        self.rho = rho0
+
         self.residual_ts = residual_ts
         self.N_r = residual_ts.numel()
         self.delta_t = delta_t
@@ -40,6 +40,11 @@ class PINNSolver():
         self.w_r = w_r
 
         self.L2 = 0.
+
+
+
+
+
 
 
 
@@ -59,8 +64,8 @@ class PINNSolverSPOP(PINNSolver):
 
         self.method = method
         self.count_loss = 0 #count the call times of self.loss
-        self.stepsize_print = 10 #the stepsize of print loss
-        self.stepsize_saverho = 100
+        self.step_p = 10 #the stepsize of print loss
+        self.step_s = 100
         self.t1 = time.time()
         self.t2 = time.time()
         # self.t_input = torch.zeros((residual_ts.shape[0],self.rho.N_t),dtype=torch.float64,device=get_device())
@@ -93,21 +98,21 @@ class PINNSolverSPOP(PINNSolver):
             L_e[i] =  L2/(trace**2)
             L_tr[i] = (1-trace)**2
         loss = self.w_b*L_b + self.w_e*torch.sum(L_e) +self.w_r*torch.sum(L_tr)
-        if self.count_loss%self.stepsize_print==0 :
+        if self.count_loss%self.step_p==0 :
             # if self.count==0:
             #     t3 = time.time()
             self.t2 = time.time()
             print(f'count:{self.count_loss:4d}   \
                   loss_{self.method}:{loss:.4e}   t:{self.t2-self.t1:.2e} \
                     trace_at_last:{trace}',flush=True)
-            self.save_physics(loss)
             self.t1 = time.time()
-        # if self.count_loss%self.stepsize_print==0:
+        # if self.count_loss%self.step_p==0:
             # result_print(loss,ifresult=False)
         if (self.count_loss!=0 and 
-            self.count_loss%self.stepsize_saverho==0):
+            self.count_loss%self.step_s==0):
             # and meth=='BFGS':
             torch.save(self.rho.state_dict(),f'rho_'+self.method+f'_ll_t_{self.count_loss}')
+            self.save_physics()
         self.count_loss += 1
         self.L2 = loss.to('cpu').numpy()
         return self.L2
@@ -137,72 +142,13 @@ class PINNSolverSPOP(PINNSolver):
         lossd = self.rho.nnd_to_vec()
         self.rho.zero_grad()
         return lossd.to('cpu').numpy()
-    
-    class MyTakeStep:
-        '''
         
-        '''
-        def __init__(self,stepsize):
-            self.step = stepsize
-            self.rng = np.random.default_rng()
-
-        def __call__(self, x):
-            # print('average(para) %f' % np.average(x))
-
-            if np.abs(np.average(x)) > 10:
-                print('overflow,then restart\n')
-                x = self.rng.uniform(-4,0,x.shape)
-                # print('average(new para) %f' % np.average(x))
-            x_next = self.unirandom(x)
-            while(np.average(x_next) > 5):
-                print(f'average over 5:{np.average(x_next)}\n')
-                x_next = self.unirandom(x)
-            x = x_next
-            # self.rho.vec_to_nn(torch.from_numpy(x).to(get_device()))
-            return x
-        
-    def print_fun(self,x,f,accepted):
-        '''
-        print the results of each hopping
-        '''
-        self.count_hopping += 1
-        self.count = 0
-        print("step:%2d, accepted %d, loss at minimum %.5e" % (self.count_hopping,int(accepted),f))
-        self.rho.vec_to_nn(torch.from_numpy(x).to(get_device()))
-
-        rho_0 = self.rho.rho_0().detach()
-        n_up, n_down = self.operator.occupation(rho_0)
-        print(f'{self.N_rho[328]:1d} {self.rho.States(self.states[328:329]).item(): .6e}  {self.target[328]: .6e}')
-        print(f'{self.N_rho[1270]:1d} {self.rho.States(self.states[1270:1271]).item(): .6e}  {self.target[1270]: .6e}')
-        print(f'{self.N_rho[666]:1d} {self.rho.States(self.states[666:667]).item(): .6e}  {self.target[666]: .6e}')
-        print(f'{self.N_rho[1460]:1d} {self.rho.States(self.states[1460:1461]).item(): .6e}  {self.target[1460]: .6e}')
-        print(f'{self.N_rho[1850]:1d} {self.rho.States(self.states[1850:1851]).item(): .6e}  {self.target[1850]: .6e}')
-        print(f'{self.N_rho[620]:1d} {self.rho.States(self.states[620:621]).item(): .6e}  {self.target[620]: .6e}')
-        print(f'up:{n_up:6e} ,down:{n_down:6e} ,trace: {torch.real(torch.trace(rho_0)):.5e}')
-
-        print('loss = %.5e\n' % (self.loss(x)))
-        torch.save(self.rho.state_dict(),f'rho_simulate_{self.meth}_{self.count_hopping}')
-        print('\n')
-        return 0
-    
-    def hopping(self,niter=3,T=0.001,step_h=0.65,tol=1e-10,maxfun=10000,step_p=200,step_s=2000):
-        #tnc求解全局最小值
-        #主要由'maxfun'：Max. number of function evaluations来调控每一次优化，一般设置为10000-15000即可
-        #可优化至约1e-2量级
-        #tnc优化必须是float64
-        mytakestep = self.MyTakeStep(step_h)
-        self.method = 'TNC'
-        self.stepsize_print = step_p
-        self.stepsize_saverho = step_s
-        result = spop.basinhopping(self.loss,self.rho.nn_to_vec(),niter=niter,T=T,
-            take_step=mytakestep,callback=self.print_fun,
-            minimizer_kwargs={'method':self.method,'jac':self.loss_d,'tol':tol,'options':{'maxfun':maxfun}})
-        self.print_result(result)
-        return result
+    def hopping(self,meth='TNC',niter=3,T=0.001,step_h=0.65,tol=1e-10,maxfun=10000,step_p=200,step_s=2000):
+        return super().hopping(meth,niter,T,step_h,tol,maxfun,step_p,step_s)
     
     def solve(self,meth='BFGS',tol=1e-8,step_p=10,step_s=100):
-        self.stepsize_print = step_p
-        self.stepsize_saverho = step_s
+        self.step_p = step_p
+        self.step_s = step_s
         self.method = meth
         if self.method=='BFGS':
             maxiter = 80*len(self.rho.nn_to_vec())
@@ -210,51 +156,33 @@ class PINNSolverSPOP(PINNSolver):
                 self.loss,self.vec_of_rho,
                 method=self.method,jac=self.loss_d,
                 tol=tol,options={'maxiter':maxiter})
-        self.print_result(result)
+        self.result_print(result)
         return result
     
-    def save_physics(self,loss):
-        #ifresult=True: prints the info of optimization after the whole BFGS optimization
-        #ifresult=Fale: prints the info 
-
-        rho_0 = self.rho.rho_0().detach()
-        n_up, n_down = self.operators.occupation(rho_0)
-        trace = torch.real(torch.trace(rho_0))
-
-        I = self.operators.current_general(self.rho,rho_0)
-        Ib = torch.sum(I,dim=0)
-        I_tot = torch.sum(Ib).reshape(1)
-        f1 = open('result_ll','a')
-        f1.write(f'{self.count_loss:4d}   {n_up:.5e}  {n_down:.5e}   {trace:.3e}   {loss:.5e}      ')
-        if self.liouville.nalf == 1 : #rho.Nb=1: tt, j_left_u, j_left_d, j_left_u+j_left_d
-            f1.write(f'{torch.real(I[0][0]).item(): .5e}  {torch.real(I[1][0]).item(): .5e}  {torch.real(I_tot[0]).item(): .5e}')
-        else : #rho.Nb>1: tt, j_left, j_left, j_left+j_left
-            I_tot = torch.cat((Ib,I_tot))
-            for i in range(self.liouville.nalf+1) : 
-                f1.write(f'{torch.real(I_tot[i]).item(): .5e}  ')
-        if self.rho.Nv>1 :
-            S12, Sx2, Sy2, Sz2 = self.operators.spin_ddot(rho_0)
-            f1.write('      ')
-            f1.write(f'{S12: .5e}   {Sx2:.5e}  {Sy2:.5e}  {Sz2:.5e}')
-        f1.write('\n')
+    def save_physics(self,fname='result_evo_ll_t'):
+        t_slice = torch.range(self.residual_ts[0],self.residual_ts[-1],0.05,dtype=torch.float64)
+        f1 = open(fname,'a')
+        for t in t_slice:
+            rho_0 = self.rho.rho_0(t).detach()
+            n_up, n_down = self.operators.occupation(rho_0)
+            trace = torch.real(torch.trace(rho_0))
+            I = self.operators.current_general(self.rho,rho_0,t)
+            Ib = torch.sum(I,dim=0)
+            I_tot = torch.sum(Ib).reshape(1)
+            f1.write(f'{t:.6f}   {n_up:.5e}  {n_down:.5e}   {trace:.3e}      ')
+            if self.rho.Nb == 1 : #rho.Nb=1: tt, j_left_u, j_left_d, j_left_u+j_left_d
+                f1.write(f'{torch.real(I[0][0]).item(): .5e}  {torch.real(I[1][0]).item(): .5e}  {torch.real(I_tot[0]).item(): .5e}')
+            else : #rho.Nb>1: tt, j_left, j_left, j_left+j_left
+                I_tot = torch.cat((Ib,I_tot))
+                for i in range(self.rho.Nb+1) : 
+                    f1.write(f'{torch.real(I_tot[i]).item(): .5e}  ')
+            if self.rho.Nv>1 :
+                S12, Sx2, Sy2, Sz2 = self.operators.spin_ddot(rho_0)
+                f1.write('      ')
+                f1.write(f'{S12: .5e}   {Sx2:.5e}  {Sy2:.5e}  {Sz2:.5e}')
+            f1.write('\n')
         f1.flush()
         f1.close()
-
-    def print_result(self,result):
-        #prints the info of the whole BFGS optimization
-        print("n_it: %d" % result.nit)
-        print("total evaluations: %d" % result.nfev,flush=True)
-        print(f'terminate because:{result.message}')
-        self.rho.vec_to_nn(torch.from_numpy(result.x).to(get_device()))
-
-        rho_0 = self.rho.rho_0().detach()
-        n_up, n_down = self.operators.occupation(rho_0)
-        trace = torch.real(torch.trace(rho_0))
-        print('rho_0:')
-        print(f'up:{n_up:6e}  ;down:{n_down:6e}')
-        print(f'trace: {trace:.3e}')
-        print('loss_at_end')
-        print(f'loss:{self.L2:.5e}')
 
 
 class PINNSolverAdam(PINNSolver):
@@ -273,15 +201,15 @@ class PINNSolverAdam(PINNSolver):
         
         self.method = 'Adam'
         self.count_epoch = 0 #count the call times of self.loss
-        self.stepsize_print = 10 #the stepsize of print loss
-        self.stepsize_saverho = 100
+        self.step_p = 10 #the stepsize of print loss
+        self.step_s = 100
         self.t1 = time.time()
         self.t2 = time.time()
 
         self.batch_size = batch_size
 
-        # self.stepsize_print = 200
-        # self.stepsize_saverho = 5000
+        # self.step_p = 200
+        # self.step_s = 5000
 
     def loss(self,states:torch.Tensor,targets_initial:torch.Tensor,coef_initial:torch.Tensor) : 
         #contribution of initial conditions/ boundary conditions
@@ -310,7 +238,7 @@ class PINNSolverAdam(PINNSolver):
         # print(f'L_tr:{L_tr}')
         loss = self.w_b*L_b + self.w_e*torch.sum(L_e) +self.w_r*torch.sum(L_tr)
         # global self.count_loss
-        # global self.stepsize_print
+        # global self.step_p
         # global step_count_back
         # global t3
         # global t4
@@ -365,7 +293,7 @@ class PINNSolverAdam(PINNSolver):
                 self.training_loss.append(self.L2)
                 # print(f'epoch: {self.count_epoch}       loss:{self.L2}',
                     #   flush=True)
-                if self.count_epoch%self.stepsize_print==0:
+                if self.count_epoch%self.step_p==0:
                     self.t2 = time.time()
                 #     t2 = time.time()
                 #     rho_0 = rho.rho_0().detach()
@@ -376,7 +304,7 @@ class PINNSolverAdam(PINNSolver):
                             f"lr:{optimizer.state_dict()['param_groups'][0]['lr']}"
                             ,flush=True)
                     self.t1 = self.t2
-                if self.count_epoch%self.stepsize_saverho==0:
+                if self.count_epoch%self.step_s==0:
                     torch.save(self.rho.state_dict(),f'rho_'+self.method+f'll_{self.count_epoch}')
         return self.L2
             # i = 0
@@ -493,21 +421,21 @@ class PINNSolverSPOPMultC(PINNSolverSPOP):
             L_e[i] =  L2/(trace**2)
             L_tr[i] = (1-trace)**2
         loss = self.w_b*torch.sum(L_b) + self.w_e*torch.sum(L_e) +self.w_r*torch.sum(L_tr)
-        if self.count_loss%self.stepsize_print==0 :
+        if self.count_loss%self.step_p==0 :
             # if self.count==0:
             #     t3 = time.time()
             self.t2 = time.time()
             print(f'count:{self.count_loss:4d}   \
                   loss_{self.method}:{loss:.4e}   t:{self.t2-self.t1:.2e} \
                     trace_at_last:{trace}',flush=True)
-            self.save_physics(loss)
             self.t1 = time.time()
-        # if self.count_loss%self.stepsize_print==0:
+        # if self.count_loss%self.step_p==0:
             # result_print(loss,ifresult=False)
         if (self.count_loss!=0 and 
-            self.count_loss%self.stepsize_saverho==0):
+            self.count_loss%self.step_s==0):
             # and meth=='BFGS':
             torch.save(self.rho.state_dict(),f'rho_'+self.method+f'_ll_t_{self.count_loss}')
+            self.save_physics()
         self.count_loss += 1
         self.L2 = loss.to('cpu').numpy()
         return self.L2
@@ -539,3 +467,4 @@ class PINNSolverSPOPMultC(PINNSolverSPOP):
         lossd = self.rho.nnd_to_vec()
         self.rho.zero_grad()
         return lossd.to('cpu').numpy()
+    
