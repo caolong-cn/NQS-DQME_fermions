@@ -267,10 +267,11 @@ class Sampler():
             if self.allcut > 4:
                 print('allcut is to big.')
             N_ado = np.zeros((5))
-            N_ado[0] = self.Nd*2**(Ns-1)
-            N_ado[1] = Ne**2*(Ns+comb(Ns,2))*2**Ns
-            N_ado[2] = Ne**3*(Ns*(Ns-1)+comb(Ns,3))*2**Ns + Ne*comb(Ne,2)*Ns*2**Ns
-            N_ado[3] = 2**(Ns-1)*Ne**4*(2*comb(Ns,4)+Ns**2*(Ns-1)+Ns/2)-2**(Ns-1)*Ne**3*Ns**2+2**(Ns-1)*Ne**2*Ns/2
+            N_ado[0] = 2**Ns
+            N_ado[1] = self.Nd*2**(Ns-1)
+            N_ado[2] = Ne**2*(Ns+comb(Ns,2))*2**Ns
+            N_ado[3] = Ne**3*(Ns*(Ns-1)+comb(Ns,3))*2**Ns + Ne*comb(Ne,2)*Ns*2**Ns
+            N_ado[4] = 2**(Ns-1)*Ne**4*(2*comb(Ns,4)+Ns**2*(Ns-1)+Ns/2)-2**(Ns-1)*Ne**3*Ns**2+2**(Ns-1)*Ne**2*Ns/2
             # (2+2*Ns*Ne+(Ns*Ns+Ns/2)*Ne**2+(Ns*(Ns**2-1)/3)*Ne**3+
                         # (comb(Ns,4)*2+Ns**2*(Ns-1)+Ns/2)*Ne**4)*2**(Ns-1)
             # N_ado[4] = 2**Ns*comb(Ns,5)*Ne**5+pow(2,Ns-3)*(comb(Ns,4)*32*Ne**5+comb(Ns,3)*24*Ne**3*comb(Ne,2))+\
@@ -278,17 +279,17 @@ class Sampler():
             #                        +Ns*2*comb(Ne,2)*comb(Ne,3))
         elif self.sys_mode == 1 :
             # N_ado = np.array([320.,3504.,26624.])
-            N_ado = np.zeros((3))
+            N_ado = np.zeros((4))
             nstate = self.nstate
             statescols = [i for i in range(3,3+nstate)]
             states_Nd = np.sum(np.loadtxt('table_cut4.data',usecols=(statescols),dtype=np.int8)[:,0:self.Nd],axis=1).flatten()
             for i in range(N_ado.size):
-                condition = states_Nd[:]==(i+1)
+                condition = states_Nd[:]==(i)
                 N_ado[i] = states_Nd[condition].shape[0]
         print(f'N_ado:{N_ado}')
         for i in range(self.nonmccut+1,self.allcut+1):
             print(i)
-            self.mc_coefficient += N_ado[i-1]*a**i 
+            self.mc_coefficient += N_ado[i]*a**i 
         print(f'mcweight:{self.mc_coefficient}')
         return self.mc_coefficient
 
