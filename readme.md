@@ -1,16 +1,18 @@
 # NQS-DQME
 
-Repository for these two papers:
+Repository for these three papers:
 
 [_NQS_](https://arxiv.org/abs/2404.11093)
 
 [_PINN_](https://arxiv.org/abs/2404.11093)
 
+[_Non-Markovian Error_](https://arxiv.org/abs/2608.22404)
+
 ## Contents
 
 This repository is comprised of the following parts:
 
-- data: the data in two papers above
+- data: the data in three papers above, the results for the third paper are not completely compatible with now library, please wait for a whole update of this library.
 
 - examples: several examples with necessary data/information from DQME method such as the decomposition in the 'res_corr.data', truncated states in 'table.data', chem_potentials in the 'chem_potentials.data'. The 'input' file defines the structure of the RBM and some parameters in the TDVP method, while The 'input_h' file contains the hamiltonian information of the system.
 
